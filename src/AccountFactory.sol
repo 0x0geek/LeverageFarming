@@ -2,6 +2,7 @@
 pragma solidity 0.8.20;
 
 import "./Account.sol";
+import "./interfaces/ILeverageFarming.sol";
 
 contract AccountFactory {
     address internal constant PROTOCOL_ADDRESS =
@@ -15,8 +16,8 @@ contract AccountFactory {
             "AccountFactory: Account already created"
         );
 
-        accounts[msg.sender] = address(
-            new Account(msg.sender, PROTOCOL_ADDRESS)
-        );
+        Account account = new Account();
+        account.initialize(msg.sender, ILeverageFarming(PROTOCOL_ADDRESS));
+        accounts[msg.sender] = address(account);
     }
 }
