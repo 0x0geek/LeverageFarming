@@ -4,11 +4,22 @@ pragma solidity 0.8.20;
 import "@openzeppelin-upgrade/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin-upgrade/contracts/security/ReentrancyGuardUpgradeable.sol";
 import "./interfaces/ILeverageFarming.sol";
+import "./interfaces/ICompoundFacet.sol";
+import "./interfaces/IAaveFacet.sol";
+import "./interfaces/ICurveFacet.sol";
 import "./VersionAware.sol";
 
 contract Account is Initializable, ReentrancyGuardUpgradeable, VersionAware {
+    uint256 public constant MAX_LEVERAGE = 5;
+    uint256 public constant LIQUIDATION_THRESOLD = 1; // Health ratio below 1 triggers liquidation
+    uint256 public constant interestRate = 10; // 10% interest rate
+
     address public owner;
+
     ILeverageFarming leverageFarming;
+    ICurveFacet curveFacet;
+    IAaveFacet aaveFacet;
+    ICompoundFacet compoundFacet;
 
     event Deposit(
         address indexed _user,
@@ -20,7 +31,7 @@ contract Account is Initializable, ReentrancyGuardUpgradeable, VersionAware {
         address indexed _token,
         uint256 _amount
     );
-    event Repay(address indexed _user, address indexed _token, uint256 amount);
+    event Repay(address indexed _user, address indexed _token, uint256 _amount);
     event Withdraw(
         address indexed _user,
         address indexed _token,
