@@ -8,15 +8,21 @@ library LibFarmStorage {
     bytes32 constant STORAGE_POSITION =
         keccak256("com.leveragefarming.farm.storage");
 
-    struct Checkpoint {
-        uint256 timestamp;
+    struct Pool {
+        uint256 balance;
+        uint256 borrowed;
+        uint256 interest;
+        mapping(address => LiquidityProvider) liquidityProviders;
+    }
+
+    struct LiquidityProvider {
         uint256 amount;
     }
 
     struct Storage {
         bool initialized;
-        mapping(address => Checkpoint[]) delegatedPowerHistory;
-        IERC20 bond;
+        mapping(uint8 => Pool) pools;
+        mapping(address => bool) supportedTokens;
     }
 
     function farmStorage() internal pure returns (Storage storage ds) {

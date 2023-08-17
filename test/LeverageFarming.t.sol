@@ -7,7 +7,5 @@ import "../src/LeverageFarming.sol";
 contract LeverageFarmingTest is Test {
     LeverageFarming public farming;
 
-    function setUp() public {
-        farming = new LeverageFarming();
-    }
+    function setUp() public {}
 }
