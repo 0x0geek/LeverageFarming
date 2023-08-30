@@ -2,15 +2,11 @@
 pragma solidity 0.8.20;
 
 import "./Facets/AccountFacet.sol";
-import "./interfaces/ILeverageFarming.sol";
 
 contract AccountFactory {
     mapping(address => address) public accounts;
-    address internal immutable leverageFarmingAddress;
 
-    constructor(address _leverageFarming) {
-        leverageFarmingAddress = _leverageFarming;
-    }
+    constructor() {}
 
     function createAccount() external {
         require(

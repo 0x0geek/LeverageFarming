@@ -4,7 +4,6 @@ pragma solidity 0.8.20;
 import "@openzeppelin-upgrade/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin-upgrade/contracts/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "../interfaces/ILeverageFarming.sol";
 import "../interfaces/ICompoundFacet.sol";
 import "../interfaces/IAaveFacet.sol";
 import "../interfaces/ICurveFacet.sol";
