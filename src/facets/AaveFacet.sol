@@ -11,4 +11,10 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 contract AaveFacet {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
+
+    function initAave() public {
+        LibFarmStorage.Storage storage ds = LibFarmStorage.farmStorage();
+
+        require(!ds.initialized, "Barn: already initialized");
+    }
 }

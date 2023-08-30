@@ -19,10 +19,7 @@ contract AccountFactory {
         );
 
         AccountFacet account = new AccountFacet();
-        account.initialize(
-            msg.sender,
-            ILeverageFarming(leverageFarmingAddress)
-        );
+        account.initialize(msg.sender);
         accounts[msg.sender] = address(account);
     }
 }

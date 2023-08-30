@@ -15,13 +15,17 @@ contract AccountFacet is
     ReentrancyGuardUpgradeable,
     VersionAware
 {
+    struct Strategy {
+        address strategyAddress;
+        uint256 amount;
+    }
+
     uint256 public constant MAX_LEVERAGE = 5;
     uint256 public constant LIQUIDATION_THRESOLD = 1; // Health ratio below 1 triggers liquidation
     uint256 public constant interestRate = 10; // 10% interest rate
 
     address public owner;
 
-    ILeverageFarming leverageFarming;
     IERC20 usdcToken;
     IERC20 usdtToken;
 
@@ -55,12 +59,8 @@ contract AccountFacet is
         _;
     }
 
-    function initialize(
-        address _owner,
-        ILeverageFarming _leverage
-    ) external initializer {
+    function initialize(address _owner) external initializer {
         owner = _owner;
-        leverageFarming = _leverage;
         versionAwareContractName = "Beacon Proxy Pattern: V1";
     }
 
