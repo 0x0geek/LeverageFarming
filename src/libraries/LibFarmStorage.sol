@@ -23,6 +23,8 @@ library LibFarmStorage {
         bool initialized;
         mapping(uint8 => Pool) pools;
         mapping(address => bool) supportedTokens;
+        mapping(address => address) accounts;
+        uint256 interestRate;
     }
 
     function farmStorage() internal pure returns (Storage storage ds) {

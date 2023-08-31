@@ -7,8 +7,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/ICompound.sol";
 import "../libraries/LibFarmStorage.sol";
 import "../libraries/LibOwnership.sol";
+import "../libraries/LibCommonModifier.sol";
 
-contract CompoundFacet {
+contract CompoundFacet is LibCommonModifier {
     using SafeERC20 for IERC20;
 
     event EtherSupplied(uint _mintResult, uint256 _amount);
@@ -20,7 +21,7 @@ contract CompoundFacet {
 
     function supplyEther(
         address payable _etherContract
-    ) external payable returns (bool) {
+    ) external payable onlyRegisteredAccount returns (bool) {
         if (msg.value == 0) revert InvalidSupplyAmount();
         // Create a reference to the corresponding cToken contract
         CEth cToken = CEth(_etherContract);
@@ -37,7 +38,7 @@ contract CompoundFacet {
         address _tokenAddress,
         address _cTokenAddress,
         uint256 _amountToSupply
-    ) external returns (uint) {
+    ) external onlyRegisteredAccount returns (uint) {
         if (_amountToSupply == 0) revert InvalidSupplyAmount();
 
         // Create a reference to the underlying asset contract, like USDC, USDT.
@@ -67,7 +68,7 @@ contract CompoundFacet {
         uint256 _amount,
         bool redeemType,
         address _cTokenAddress
-    ) external returns (bool) {
+    ) external onlyRegisteredAccount returns (bool) {
         // Create a reference to the corresponding cToken contract, like cUSDC, cUSDT
         CErc20 cToken = CErc20(_cTokenAddress);
 
@@ -90,7 +91,7 @@ contract CompoundFacet {
         uint256 _amount,
         bool _redeemType,
         address _cEtherAddress
-    ) external returns (bool) {
+    ) external onlyRegisteredAccount returns (bool) {
         // Create a reference to the corresponding cToken contract
         CEth cToken = CEth(_cEtherAddress);
 

@@ -8,8 +8,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/IAave.sol";
 import "../libraries/LibFarmStorage.sol";
 import "../libraries/LibOwnership.sol";
+import "../libraries/LibCommonModifier.sol";
 
-contract AaveFacet {
+contract AaveFacet is LibCommonModifier {
     using SafeERC20 for IERC20;
 
     address private constant AAVE_LENDING_POOL_ADDRESSES_PROVIDER =
@@ -18,7 +19,10 @@ contract AaveFacet {
     error InvalidDepositAmount();
     error InsufficientBalance();
 
-    function deposit(address _tokenAddress, uint256 _amount) external {
+    function deposit(
+        address _tokenAddress,
+        uint256 _amount
+    ) external onlyRegisteredAccount {
         if (_amount == 0) revert InvalidDepositAmount();
 
         IERC20 token = IERC20(_tokenAddress);
@@ -44,7 +48,7 @@ contract AaveFacet {
         address _tokenAddress,
         address _aTokenAddress,
         uint256 _amount
-    ) external {
+    ) external onlyRegisteredAccount {
         IERC20 aToken = IERC20(_aTokenAddress);
 
         if (aToken.balanceOf(msg.sender) < _amount)

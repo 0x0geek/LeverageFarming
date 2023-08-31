@@ -6,8 +6,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/ICurve.sol";
 import "../libraries/LibFarmStorage.sol";
 import "../libraries/LibOwnership.sol";
+import "../libraries/LibCommonModifier.sol";
 
-contract CurveFacet {
+contract CurveFacet is LibCommonModifier {
     using SafeERC20 for IERC20;
 
     address internal constant CURVE_MINTER_ADDR =
@@ -32,7 +33,7 @@ contract CurveFacet {
         address _poolAddress,
         address[] calldata _tokenAddress,
         uint256[3] memory _amounts
-    ) external returns (uint256) {
+    ) external onlyRegisteredAccount returns (uint256) {
         for (uint256 i; i != _tokenAddress.length; ++i) {
             IERC20 token = IERC20(_tokenAddress[i]);
 
@@ -62,7 +63,7 @@ contract CurveFacet {
         address _poolAddress,
         uint256 _lpTokenAmount,
         uint256[3] memory _minAmounts
-    ) external returns (uint256[3] memory) {
+    ) external onlyRegisteredAccount returns (uint256[3] memory) {
         // Deposit tokens into Curve pool
         uint256[3] memory amounts = ICurvePool(_poolAddress).remove_liquidity(
             _lpTokenAmount,
