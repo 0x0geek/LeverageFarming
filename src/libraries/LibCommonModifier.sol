@@ -7,6 +7,7 @@ contract LibCommonModifier {
     error InvalidAccount();
     error InvalidOwner();
     error AmountZero();
+    error NotSupportedToken();
 
     modifier onlyRegisteredAccount() {
         checkExistAccount(msg.sender);
@@ -18,12 +19,24 @@ contract LibCommonModifier {
         _;
     }
 
+    modifier onlySupportedToken(address _token) {
+        checkIfSupportedToken(_token);
+        _;
+    }
+
     function checkExistAccount(address _sender) internal view {
         LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
+
         if (fs.accounts[_sender] == address(0)) revert InvalidAccount();
     }
 
     function checkIfAmountNotZero(uint256 _amount) internal view virtual {
         if (_amount == 0) revert AmountZero();
+    }
+
+    function checkIfSupportedToken(address _token) internal view virtual {
+        LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
+
+        if (fs.supportedTokens[_token] == false) revert NotSupportedToken();
     }
 }

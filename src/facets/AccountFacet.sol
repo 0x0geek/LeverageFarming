@@ -35,31 +35,31 @@ contract AccountFacet is LibCommonModifier {
     }
 
     function deposit(
-        address token,
-        uint256 amount
-    ) external onlyAmountNotZero(amount) {
-        emit Deposit(msg.sender, token, amount);
+        address _token,
+        uint256 _amount
+    ) external onlySupportedToken(_token) onlyAmountNotZero(_amount) {
+        emit Deposit(msg.sender, _token, _amount);
     }
 
     function borrow(
-        address token,
-        uint256 amount
-    ) external onlyAmountNotZero(amount) {
-        emit Borrow(msg.sender, token, amount);
+        address _token,
+        uint256 _amount
+    ) external onlySupportedToken(_token) onlyAmountNotZero(_amount) {
+        emit Borrow(msg.sender, _token, _amount);
     }
 
     function repay(
-        address token,
-        uint256 amount
-    ) external onlyAmountNotZero(amount) {
-        emit Repay(msg.sender, token, amount);
+        address _token,
+        uint256 _amount
+    ) external onlySupportedToken(_token) onlyAmountNotZero(_amount) {
+        emit Repay(msg.sender, _token, _amount);
     }
 
     function withdraw(
-        address token,
-        uint256 amount
-    ) external onlyOwner onlyAmountNotZero(amount) {
-        emit Withdraw(msg.sender, token, amount);
+        address _token,
+        uint256 _amount
+    ) external onlyOwner onlySupportedToken(_token) onlyAmountNotZero(_amount) {
+        emit Withdraw(msg.sender, _token, _amount);
     }
 
     function checkIfOwner(address _sender) internal view {

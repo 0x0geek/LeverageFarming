@@ -16,7 +16,6 @@ contract CurveFacet is LibCommonModifier {
     address internal constant CURVE_TOKEN_ADDR =
         0xD533a949740bb3306d119CC777fa900bA034cd52;
 
-    ILiquidityGauge public crvLiquidityGauge;
     IERC20 private immutable crvToken;
     ICurveMinter private immutable crvMinter;
 

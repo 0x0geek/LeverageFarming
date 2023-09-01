@@ -10,12 +10,10 @@ library LibFarmStorage {
 
     struct Pool {
         uint256 balance;
-        uint256 borrowed;
         uint256 interest;
-        mapping(address => LiquidityProvider) liquidityProviders;
     }
 
-    struct LiquidityProvider {
+    struct Depositor {
         uint256 amount;
     }
 
@@ -24,6 +22,7 @@ library LibFarmStorage {
         mapping(uint8 => Pool) pools;
         mapping(address => bool) supportedTokens;
         mapping(address => address) accounts;
+        mapping(address => mapping(address => Depositor)) depositors;
         uint256 interestRate;
     }
 

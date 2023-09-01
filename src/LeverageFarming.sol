@@ -24,4 +24,17 @@ contract LeverageFarming is Ownable, ReentrancyGuard {
     function setFacetAddrs(address[] memory _facetAddrs) external onlyOwner {
         accountFactory.setFacetAddrs(_facetAddrs);
     }
+
+    function setSupportedToken(
+        address _token,
+        bool _supported
+    ) external onlyOwner {
+        LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
+        fs.supportedTokens[_token] = _supported;
+    }
+
+    function addPool(address _token) external onlyOwner {
+        LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
+        // fs.pools[_token] = Pool({balance: 0, interest: 0});
+    }
 }
