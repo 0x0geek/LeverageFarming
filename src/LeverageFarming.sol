@@ -30,11 +30,18 @@ contract LeverageFarming is Ownable, ReentrancyGuard {
         bool _supported
     ) external onlyOwner {
         LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
-        fs.supportedTokens[_token] = _supported;
+        LibFarmStorage.Pool storage pool = fs.pools[_token];
+        if (pool.supported != _supported) pool.supported = _supported;
     }
 
     function addPool(address _token) external onlyOwner {
         LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
-        // fs.pools[_token] = Pool({balance: 0, interest: 0});
+        fs.pools[_token] = LibFarmStorage.Pool({
+            balanceAmount: 0,
+            interestAmount: 0,
+            borrowAmount: 0,
+            assetAmount: 0,
+            supported: true
+        });
     }
 }

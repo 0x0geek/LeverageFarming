@@ -37,6 +37,6 @@ contract LibCommonModifier {
     function checkIfSupportedToken(address _token) internal view virtual {
         LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
 
-        if (fs.supportedTokens[_token] == false) revert NotSupportedToken();
+        if (fs.pools[_token].supported == false) revert NotSupportedToken();
     }
 }
