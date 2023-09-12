@@ -14,9 +14,30 @@ contract LeverageFarming is Ownable, ReentrancyGuard {
 
     constructor(address _accFactoryAddr) {
         accountFactory = IAccountFactory(_accFactoryAddr);
+
+        addPool(
+            0,
+            LibFarmStorage.ETHER_ADDRESS,
+            LibFarmStorage.CETHER_ADDRESS,
+            LibFarmStorage.ETHER_ADDRESS
+        ); // Ether pool
+
+        addPool(
+            1,
+            LibFarmStorage.USDC_ADDRESS,
+            LibFarmStorage.CUSDC_ADDRESS,
+            LibFarmStorage.AUSDC_ADDRESS
+        ); // USDC pool
+
+        addPool(
+            2,
+            LibFarmStorage.USDT_ADDRESS,
+            LibFarmStorage.CUSDT_ADDRESS,
+            LibFarmStorage.AUSDT_ADDRESS
+        ); // USDT pool
     }
 
-    function setInterestRate(uint256 _interestRate) external onlyOwner {
+    function setInterestRate(uint8 _interestRate) external onlyOwner {
         LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
         fs.interestRate = _interestRate;
     }
@@ -26,17 +47,25 @@ contract LeverageFarming is Ownable, ReentrancyGuard {
     }
 
     function setSupportedToken(
-        address _token,
+        uint8 _poolIndex,
         bool _supported
     ) external onlyOwner {
         LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
-        LibFarmStorage.Pool storage pool = fs.pools[_token];
+        LibFarmStorage.Pool storage pool = fs.pools[_poolIndex];
         if (pool.supported != _supported) pool.supported = _supported;
     }
 
-    function addPool(address _token) external onlyOwner {
+    function addPool(
+        uint8 _poolIndex,
+        address _token,
+        address _cToken,
+        address _aToken
+    ) internal {
         LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
-        fs.pools[_token] = LibFarmStorage.Pool({
+        fs.pools[_poolIndex] = LibFarmStorage.Pool({
+            tokenAddress: _token,
+            cTokenAddress: _cToken,
+            aTokenAddress: _aToken,
             balanceAmount: 0,
             interestAmount: 0,
             borrowAmount: 0,

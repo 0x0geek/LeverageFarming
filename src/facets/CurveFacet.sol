@@ -1,34 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.20;
-
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+pragma experimental ABIEncoderV2;
 
 import "../interfaces/ICurve.sol";
 import "../libraries/LibFarmStorage.sol";
 import "../libraries/LibOwnership.sol";
-import "../libraries/LibCommonModifier.sol";
+import "./BaseFacet.sol";
 
-contract CurveFacet is LibCommonModifier {
+contract CurveFacet is BaseFacet {
     using SafeERC20 for IERC20;
-
-    address internal constant CURVE_MINTER_ADDR =
-        0xd061D61a4d941c39E5453435B6345Dc261C2fcE0;
-    address internal constant CURVE_TOKEN_ADDR =
-        0xD533a949740bb3306d119CC777fa900bA034cd52;
-
-    IERC20 private immutable crvToken;
-    ICurveMinter private immutable crvMinter;
 
     event Deposit(address indexed _poolAddress, uint256 _amount);
     event Withdraw(address indexed _poolAddress, uint256[3] _amounts);
     error InsufficientBalance();
 
-    constructor() {
-        crvMinter = ICurveMinter(CURVE_MINTER_ADDR);
-        crvToken = IERC20(CURVE_TOKEN_ADDR);
-    }
-
-    function deposit(
+    function depositToCurve(
         address _poolAddress,
         address[] calldata _tokenAddress,
         uint256[3] memory _amounts
@@ -58,7 +44,7 @@ contract CurveFacet is LibCommonModifier {
         return lpTokenAmount;
     }
 
-    function withdraw(
+    function withdrawFromCurve(
         address _poolAddress,
         uint256 _lpTokenAmount,
         uint256[3] memory _minAmounts

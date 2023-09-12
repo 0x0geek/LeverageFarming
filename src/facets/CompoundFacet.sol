@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.20;
-
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+pragma experimental ABIEncoderV2;
 
 import "../interfaces/ICompound.sol";
 import "../libraries/LibFarmStorage.sol";
 import "../libraries/LibOwnership.sol";
-import "../libraries/LibCommonModifier.sol";
+import "./BaseFacet.sol";
 
-contract CompoundFacet is LibCommonModifier {
+contract CompoundFacet is BaseFacet {
     using SafeERC20 for IERC20;
+    using SafeMath for uint256;
 
     event EtherSupplied(uint _mintResult, uint256 _amount);
     event TokenSupplied(uint _mintResult, uint256 _amount);
@@ -41,25 +40,50 @@ contract CompoundFacet is LibCommonModifier {
     ) external onlyRegisteredAccount returns (uint) {
         if (_amountToSupply == 0) revert InvalidSupplyAmount();
 
-        // Create a reference to the underlying asset contract, like USDC, USDT.
-        IERC20 underlying = IERC20(_tokenAddress);
+        IERC20 underlyingToken = IERC20(_tokenAddress);
 
-        if (underlying.balanceOf(msg.sender) < _amountToSupply)
-            revert InsufficientBalance();
+        if (underlyingToken.balanceOf(msg.sender) < _amountToSupply)
+            revert InsufficientUserBalance();
 
+        uint8 poolIndex = getPoolIndexFromToken(_tokenAddress);
+
+        LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
+        LibFarmStorage.Pool storage pool = fs.pools[poolIndex];
+
+        uint256 leverageAmount = _amountToSupply.mul(
+            LibFarmStorage.LEVERAGE_LEVEL
+        );
+
+        if (pool.balanceAmount < leverageAmount)
+            revert InsufficientPoolBalance();
+
+        uint256 depositAmount = _amountToSupply + leverageAmount;
         // Transfer tokens from sender to this contract
-        underlying.safeTransferFrom(msg.sender, address(this), _amountToSupply);
+        underlyingToken.safeTransferFrom(
+            msg.sender,
+            address(this),
+            _amountToSupply
+        );
 
         // Approve transfer on the ERC20 contract
-        underlying.safeApprove(_cTokenAddress, _amountToSupply);
+        underlyingToken.safeApprove(_cTokenAddress, depositAmount);
 
         // Create a reference to the corresponding cToken contract, like cUSDC, cUSDT
         CErc20 cToken = CErc20(_cTokenAddress);
 
-        // Mint cTokens
-        uint mintResult = cToken.mint(_amountToSupply);
+        LibFarmStorage.Depositor storage depositor = fs.depositors[msg.sender];
+        depositor.debtAmount[poolIndex] += leverageAmount;
 
-        emit TokenSupplied(mintResult, _amountToSupply);
+        uint256 balanceBeforeMint = cToken.balanceOf(address(this));
+
+        // Mint cTokens
+        uint mintResult = cToken.mint(depositAmount);
+
+        depositor.stakeAmount[_cTokenAddress] +=
+            cToken.balanceOf(address(this)) -
+            balanceBeforeMint;
+
+        emit TokenSupplied(mintResult, depositAmount);
 
         return mintResult;
     }

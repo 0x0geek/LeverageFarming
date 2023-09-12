@@ -2,16 +2,15 @@
 pragma solidity 0.8.20;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
 import "../interfaces/IAave.sol";
-import "../libraries/LibFarmStorage.sol";
 import "../libraries/LibOwnership.sol";
-import "../libraries/LibCommonModifier.sol";
+import "../libraries/ReEntrancyGuard.sol";
 
-contract AaveFacet is LibCommonModifier {
+import "./BaseFacet.sol";
+
+contract AaveFacet is BaseFacet, ReEntrancyGuard {
     using SafeERC20 for IERC20;
+    using SafeMath for uint256;
 
     address private constant AAVE_LENDING_POOL_ADDRESSES_PROVIDER =
         0xB53C1a33016B2DC2fF3653530bfF1848a515c8c5;
@@ -19,32 +18,62 @@ contract AaveFacet is LibCommonModifier {
     error InvalidDepositAmount();
     error InsufficientBalance();
 
-    function deposit(
+    function depositToAave(
         address _tokenAddress,
         uint256 _amount
-    ) external onlyRegisteredAccount {
+    )
+        external
+        onlySupportedToken(_tokenAddress)
+        onlyRegisteredAccount
+        noReentrant
+    {
         if (_amount == 0) revert InvalidDepositAmount();
+
+        borrowToken(msg.sender, _tokenAddress, _amount);
 
         IERC20 token = IERC20(_tokenAddress);
 
-        if (token.balanceOf(msg.sender) < _amount) revert InsufficientBalance();
+        uint8 poolIndex = getPoolIndexFromToken(_tokenAddress);
 
-        // Transfer tokens from sender to this contract
-        token.safeTransferFrom(msg.sender, address(this), _amount);
+        LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
+        LibFarmStorage.Pool storage pool = fs.pools[poolIndex];
+
+        uint256 leverageAmount = _amount.mul(LibFarmStorage.LEVERAGE_LEVEL);
+        uint256 depositAmount = _amount + leverageAmount;
+
+        if (pool.balanceAmount < leverageAmount)
+            revert InsufficientPoolBalance();
+
+        pool.balanceAmount -= leverageAmount;
+
+        LibFarmStorage.Depositor storage depositor = fs.depositors[msg.sender];
+        depositor.debtAmount[poolIndex] += leverageAmount;
+
+        uint256 beforeATokenBalance = IERC20(pool.aTokenAddress).balanceOf(
+            address(this)
+        );
 
         // Approve the Aave lending pool to spend the tokens
-        token.safeApprove(_lendingPool(), _amount);
+        token.safeApprove(_lendingPool(), depositAmount);
 
         // Deposit tokens into Aave v2 lending pool
         ILendingPool(_lendingPool()).deposit(
             _tokenAddress,
-            _amount,
+            depositAmount,
             address(this),
             0
         );
+
+        uint256 afterAtokenBalance = IERC20(pool.aTokenAddress).balanceOf(
+            address(this)
+        );
+
+        depositor.stakeAmount[pool.aTokenAddress] +=
+            afterAtokenBalance -
+            beforeATokenBalance;
     }
 
-    function withdraw(
+    function withdrawFromAave(
         address _tokenAddress,
         address _aTokenAddress,
         uint256 _amount
