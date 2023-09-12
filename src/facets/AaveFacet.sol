@@ -4,8 +4,6 @@ pragma experimental ABIEncoderV2;
 
 import "../interfaces/IAave.sol";
 import "../libraries/LibOwnership.sol";
-import "../libraries/ReEntrancyGuard.sol";
-
 import "./BaseFacet.sol";
 
 contract AaveFacet is BaseFacet, ReEntrancyGuard {
@@ -74,10 +72,9 @@ contract AaveFacet is BaseFacet, ReEntrancyGuard {
     }
 
     function withdrawFromAave(
-        address _tokenAddress,
         address _aTokenAddress,
         uint256 _amount
-    ) external onlyRegisteredAccount {
+    ) external onlyRegisteredAccount noReentrant {
         IERC20 aToken = IERC20(_aTokenAddress);
 
         if (aToken.balanceOf(msg.sender) < _amount)
@@ -90,7 +87,7 @@ contract AaveFacet is BaseFacet, ReEntrancyGuard {
 
         // Withdraw tokens from Aave v2 lending pool
         ILendingPool(lendingPoolAddr).withdraw(
-            _tokenAddress,
+            _aTokenAddress,
             _amount,
             address(this)
         );

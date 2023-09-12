@@ -7,7 +7,7 @@ import "../libraries/LibFarmStorage.sol";
 import "../libraries/LibOwnership.sol";
 import "./BaseFacet.sol";
 
-contract CurveFacet is BaseFacet {
+contract CurveFacet is BaseFacet, ReEntrancyGuard {
     using SafeERC20 for IERC20;
 
     event Deposit(address indexed _poolAddress, uint256 _amount);
@@ -18,7 +18,7 @@ contract CurveFacet is BaseFacet {
         address _poolAddress,
         address[] calldata _tokenAddress,
         uint256[3] memory _amounts
-    ) external onlyRegisteredAccount returns (uint256) {
+    ) external onlyRegisteredAccount noReentrant returns (uint256) {
         for (uint256 i; i != _tokenAddress.length; ++i) {
             IERC20 token = IERC20(_tokenAddress[i]);
 
@@ -48,7 +48,7 @@ contract CurveFacet is BaseFacet {
         address _poolAddress,
         uint256 _lpTokenAmount,
         uint256[3] memory _minAmounts
-    ) external onlyRegisteredAccount returns (uint256[3] memory) {
+    ) external onlyRegisteredAccount noReentrant returns (uint256[3] memory) {
         // Deposit tokens into Curve pool
         uint256[3] memory amounts = ICurvePool(_poolAddress).remove_liquidity(
             _lpTokenAmount,

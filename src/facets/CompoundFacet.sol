@@ -7,7 +7,7 @@ import "../libraries/LibFarmStorage.sol";
 import "../libraries/LibOwnership.sol";
 import "./BaseFacet.sol";
 
-contract CompoundFacet is BaseFacet {
+contract CompoundFacet is BaseFacet, ReEntrancyGuard {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
@@ -20,7 +20,14 @@ contract CompoundFacet is BaseFacet {
 
     function supplyEther(
         address payable _etherContract
-    ) external payable onlyRegisteredAccount returns (bool) {
+    )
+        external
+        payable
+        onlyRegisteredAccount
+        onlySupportedToken(_etherContract)
+        noReentrant
+        returns (bool)
+    {
         if (msg.value == 0) revert InvalidSupplyAmount();
         // Create a reference to the corresponding cToken contract
         CEth cToken = CEth(_etherContract);
@@ -35,10 +42,17 @@ contract CompoundFacet is BaseFacet {
 
     function supplyToken(
         address _tokenAddress,
-        address _cTokenAddress,
         uint256 _amountToSupply
-    ) external onlyRegisteredAccount returns (uint) {
+    )
+        external
+        onlyRegisteredAccount
+        onlySupportedToken(_tokenAddress)
+        noReentrant
+        returns (uint)
+    {
         if (_amountToSupply == 0) revert InvalidSupplyAmount();
+
+        borrowToken(msg.sender, _tokenAddress, _amountToSupply);
 
         IERC20 underlyingToken = IERC20(_tokenAddress);
 
@@ -66,10 +80,10 @@ contract CompoundFacet is BaseFacet {
         );
 
         // Approve transfer on the ERC20 contract
-        underlyingToken.safeApprove(_cTokenAddress, depositAmount);
+        underlyingToken.safeApprove(pool.cTokenAddress, depositAmount);
 
         // Create a reference to the corresponding cToken contract, like cUSDC, cUSDT
-        CErc20 cToken = CErc20(_cTokenAddress);
+        CErc20 cToken = CErc20(pool.cTokenAddress);
 
         LibFarmStorage.Depositor storage depositor = fs.depositors[msg.sender];
         depositor.debtAmount[poolIndex] += leverageAmount;
@@ -79,7 +93,7 @@ contract CompoundFacet is BaseFacet {
         // Mint cTokens
         uint mintResult = cToken.mint(depositAmount);
 
-        depositor.stakeAmount[_cTokenAddress] +=
+        depositor.stakeAmount[pool.cTokenAddress] +=
             cToken.balanceOf(address(this)) -
             balanceBeforeMint;
 
@@ -92,7 +106,7 @@ contract CompoundFacet is BaseFacet {
         uint256 _amount,
         bool redeemType,
         address _cTokenAddress
-    ) external onlyRegisteredAccount returns (bool) {
+    ) external onlyRegisteredAccount noReentrant returns (bool) {
         // Create a reference to the corresponding cToken contract, like cUSDC, cUSDT
         CErc20 cToken = CErc20(_cTokenAddress);
 
@@ -115,7 +129,7 @@ contract CompoundFacet is BaseFacet {
         uint256 _amount,
         bool _redeemType,
         address _cEtherAddress
-    ) external onlyRegisteredAccount returns (bool) {
+    ) external onlyRegisteredAccount noReentrant returns (bool) {
         // Create a reference to the corresponding cToken contract
         CEth cToken = CEth(_cEtherAddress);
 

@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 import "../libraries/LibMath.sol";
 import "../libraries/LibFarmStorage.sol";
+import "../libraries/ReEntrancyGuard.sol";
 
 contract BaseFacet {
     using SafeERC20 for IERC20;
