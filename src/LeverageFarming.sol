@@ -70,6 +70,7 @@ contract LeverageFarming is Ownable, ReentrancyGuard {
             interestAmount: 0,
             borrowAmount: 0,
             assetAmount: 0,
+            rewardAmount: 0,
             supported: true
         });
     }

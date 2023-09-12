@@ -57,49 +57,57 @@ contract AccountFacet is BaseFacet, ReEntrancyGuard {
         pool.assetAmount += assetAmount;
         pool.balanceAmount += _amount;
 
-        LibFarmStorage.Depositor storage depositor = fs.depositors[msg.sender];
+        LibFarmStorage.Depositor storage depositor = fs.depositors[_poolIndex][
+            msg.sender
+        ];
 
-        depositor.amount[_poolIndex] += _amount;
-        depositor.assetAmount[_poolIndex] += assetAmount;
+        depositor.amount += _amount;
+        depositor.assetAmount += assetAmount;
 
         emit Deposit(msg.sender, _poolIndex, _amount);
     }
 
-    function repay(
-        address _token,
-        uint256 _amount
-    )
-        external
-        onlySupportedToken(_token)
-        onlyAmountNotZero(_amount)
-        noReentrant
-    {
-        emit Repay(msg.sender, _token, _amount);
+    function liquidate(
+        address _user,
+        uint8 _poolIndex
+    ) external onlyRegisteredAccount onlySupportedPool(_poolIndex) noReentrant {
+        LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
+        LibFarmStorage.Depositor storage depositor = fs.depositors[_poolIndex][
+            _user
+        ];
+
+        uint256 healthRatio = (depositor.amount +
+            getUserDebt(_user, _poolIndex)).div(depositor.debtAmount).mul(
+                LibFarmStorage.COLLATERAL_FACTOR
+            );
+
+        if (healthRatio > 100) revert InvalidLiquidate();
     }
 
     function withdraw(
-        uint8 _poolIndex,
         address _token,
         uint256 _amount
-    ) external onlyOwner onlySupportedToken(_token) noReentrant {
+    ) external onlyRegisteredAccount onlySupportedToken(_token) noReentrant {
         LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
 
         uint8 poolIndex = getPoolIndexFromToken(_token);
 
-        LibFarmStorage.Depositor storage depositor = fs.depositors[msg.sender];
+        LibFarmStorage.Depositor storage depositor = fs.depositors[poolIndex][
+            msg.sender
+        ];
 
-        uint256 assetAmount = depositor.assetAmount[poolIndex];
+        uint256 assetAmount = depositor.assetAmount;
 
         // check if User has sufficient withdraw amount
         if (assetAmount == 0) revert ZeroAmountForWithdraw();
 
-        uint256 amount = calculateAmount(_poolIndex, assetAmount);
+        uint256 amount = calculateAmount(poolIndex, assetAmount);
 
         LibFarmStorage.Pool memory pool = fs.pools[poolIndex];
 
         if (amount > pool.balanceAmount) revert NotAvailableForWithdraw();
 
-        depositor.assetAmount[poolIndex] -= assetAmount;
+        depositor.assetAmount -= assetAmount;
 
         pool.balanceAmount -= amount;
 

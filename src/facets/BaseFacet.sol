@@ -2,7 +2,6 @@
 pragma solidity 0.8.20;
 pragma experimental ABIEncoderV2;
 
-import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -10,6 +9,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "../libraries/LibMath.sol";
 import "../libraries/LibFarmStorage.sol";
 import "../libraries/ReEntrancyGuard.sol";
+import "../libraries/LibPriceOracle.sol";
 
 contract BaseFacet {
     using SafeERC20 for IERC20;
@@ -31,17 +31,7 @@ contract BaseFacet {
     error InsufficientBorrowBalance();
     error InsufficientCollateralBalance();
     error ZeroCollateralAmountForBorrow();
-
-    AggregatorV3Interface internal constant ethUsdPriceFeed =
-        AggregatorV3Interface(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
-    AggregatorV3Interface internal constant usdcEthPriceFeed =
-        AggregatorV3Interface(0x986b5E1e1755e3C2440e960477f25201B0a8bbD4);
-    AggregatorV3Interface internal constant aaveUsdPriceFeed =
-        AggregatorV3Interface(0x547a514d5e3769680Ce22B2361c10Ea13619e8a9);
-    AggregatorV3Interface internal constant curveUsdPriceFeed =
-        AggregatorV3Interface(0xCd627aA160A6fA45Eb793D19Ef54f5062F20f33f);
-    AggregatorV3Interface internal constant compoundPriceFeed =
-        AggregatorV3Interface(0xdbd020CAeF83eFd542f4De03e3cF0C28A4428bd5);
+    error InvalidLiquidate();
 
     modifier onlyRegisteredAccount() {
         checkExistAccount(msg.sender);
@@ -63,30 +53,14 @@ contract BaseFacet {
         _;
     }
 
-    function borrowToken(
-        address _user,
-        address _borrowToken,
-        uint256 _borrowAmount
-    ) internal {
-        uint256 userCollateralPrice = calculateTotalCollateralPrice(_user);
+    modifier onlySupportedAToken(address _token) {
+        checkIfSupportedAToken(_token);
+        _;
+    }
 
-        if (_borrowAmount > userCollateralPrice)
-            revert InsufficientCollateralBalance();
-
-        if (IERC20(_borrowToken).balanceOf(address(this)) < _borrowAmount)
-            revert InsufficientBorrowBalance();
-
-        uint8 poolIndex = getPoolIndexFromToken(_borrowToken);
-
-        LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
-        LibFarmStorage.Pool storage poolForBorrow = fs.pools[poolIndex];
-        LibFarmStorage.Depositor storage depositor = fs.depositors[_user];
-
-        depositor.assetAmount[poolIndex] -= calculateAssetAmount(
-            poolIndex,
-            _borrowAmount
-        );
-        poolForBorrow.balanceAmount -= _borrowAmount;
+    modifier onlySupportedCToken(address _token) {
+        checkIfSupportedCToken(_token);
+        _;
     }
 
     function checkExistAccount(address _sender) internal view {
@@ -117,6 +91,30 @@ contract BaseFacet {
         ) revert NotSupportedToken();
     }
 
+    function checkIfSupportedAToken(
+        address _tokenAddress
+    ) internal view virtual {
+        LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
+
+        if (
+            fs.pools[0].aTokenAddress != _tokenAddress ||
+            fs.pools[1].aTokenAddress != _tokenAddress ||
+            fs.pools[2].aTokenAddress != _tokenAddress
+        ) revert NotSupportedToken();
+    }
+
+    function checkIfSupportedCToken(
+        address _tokenAddress
+    ) internal view virtual {
+        LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
+
+        if (
+            fs.pools[0].cTokenAddress != _tokenAddress ||
+            fs.pools[1].cTokenAddress != _tokenAddress ||
+            fs.pools[2].cTokenAddress != _tokenAddress
+        ) revert NotSupportedToken();
+    }
+
     /**
     @dev Calculates the asset amount based on the pool ID and the amount.
     @param _amount The amount to calculate the asset amount for.
@@ -129,9 +127,10 @@ contract BaseFacet {
         LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
         LibFarmStorage.Pool memory pool = fs.pools[_poolIndex];
 
-        uint256 totalLiquidityAmount = pool.borrowAmount.add(
-            pool.balanceAmount
-        );
+        uint256 totalLiquidityAmount = pool
+            .borrowAmount
+            .add(pool.balanceAmount)
+            .add(pool.rewardAmount);
 
         if (pool.assetAmount == 0 || totalLiquidityAmount == 0) return _amount;
 
@@ -155,9 +154,10 @@ contract BaseFacet {
         LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
         LibFarmStorage.Pool memory pool = fs.pools[_poolIndex];
 
-        uint256 totalLiquidityAmount = pool.borrowAmount.add(
-            pool.balanceAmount
-        );
+        uint256 totalLiquidityAmount = pool
+            .borrowAmount
+            .add(pool.balanceAmount)
+            .add(pool.rewardAmount);
 
         uint256 amount = _assetAmount.mul(totalLiquidityAmount).divCeil(
             pool.assetAmount
@@ -166,38 +166,27 @@ contract BaseFacet {
         return amount;
     }
 
-    /**
-    @dev Returns the total liquidity of a pool by providing the pool ID.
-    @return The total liquidity of the pool.
-    @notice This function retrieves the pool data based on the pool ID and calculates the total liquidity of the pool by adding the total borrow amount and the current amount and subtracting the total reserve amount.
-    */
-    function getTotalLiquidity(
+    function getUserDebt(
+        address _user,
         uint8 _poolIndex
     ) internal view returns (uint256) {
         LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
         LibFarmStorage.Pool memory pool = fs.pools[_poolIndex];
+        LibFarmStorage.Depositor storage depositor = fs.depositors[_poolIndex][
+            _user
+        ];
 
-        return pool.borrowAmount.add(pool.balanceAmount);
-    }
+        uint256 userDebt = depositor.debtAmount;
 
-    function calculateTotalCollateralPrice(
-        address _user
-    ) internal view returns (uint256) {
-        LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
-        LibFarmStorage.Depositor storage depositor = fs.depositors[_user];
+        userDebt +=
+            depositor.stakeAmount[pool.cTokenAddress] *
+            LibPriceOracle.getLatestPrice(pool.cTokenAddress);
 
-        uint256 totalPrice = depositor
-            .amount[1]
-            .add(
-                depositor
-                    .amount[0]
-                    .mul(LibFarmStorage.USDC_DECIMAL)
-                    .div(getUsdcEthPrice())
-                    .div(100)
-            )
-            .add(depositor.amount[2]);
+        userDebt +=
+            depositor.stakeAmount[pool.cTokenAddress] *
+            LibPriceOracle.getLatestPrice(pool.aTokenAddress);
 
-        return totalPrice;
+        return userDebt;
     }
 
     function getPoolIndexFromToken(
@@ -208,33 +197,31 @@ contract BaseFacet {
         for (uint8 i; i != LibFarmStorage.MAX_POOL_LENGTH; ++i) {
             if (fs.pools[i].tokenAddress == _token) return i;
         }
+
+        return type(uint8).max;
     }
 
-    /**
-    @dev Returns the current USDC/ETH price from the Chainlink price feed.
-    @return The current USDC/ETH price with 18 decimal places.
-    @notice This function retrieves the latest round data from the Chainlink price feed for the USDC/ETH pair and returns the price with 18 decimal places.
-            According to the documentation, the return value is a fixed point number with 18 decimals for ETH data feeds
-    */
-    function getUsdcEthPrice() internal view returns (uint256) {
-        (, int256 answer, , , ) = usdcEthPriceFeed.latestRoundData();
-        // Convert the USDC/ETH price to a decimal value with 18 decimal places
-        return uint256(answer);
-    }
-
-    function getEthUsdPrice() internal view returns (uint256) {
-        (, int256 answer, , , ) = ethUsdPriceFeed.latestRoundData();
-        return uint256(answer);
-    }
-
-    function getTotalDebtAmount(address _user) internal view returns (uint256) {
+    function getPoolIndexFromCToken(
+        address _cToken
+    ) internal view returns (uint8) {
         LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
-        LibFarmStorage.Depositor storage depositor = fs.depositors[_user];
-        uint256 totalDebt = depositor
-            .debtAmount[0]
-            .mul(getEthUsdPrice())
-            .add(depositor.debtAmount[1])
-            .add(depositor.debtAmount[2]);
-        return totalDebt;
+
+        for (uint8 i; i != LibFarmStorage.MAX_POOL_LENGTH; ++i) {
+            if (fs.pools[i].cTokenAddress == _cToken) return i;
+        }
+
+        return type(uint8).max;
+    }
+
+    function getPoolIndexFromAToken(
+        address _aToken
+    ) internal view returns (uint8) {
+        LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
+
+        for (uint8 i; i != LibFarmStorage.MAX_POOL_LENGTH; ++i) {
+            if (fs.pools[i].aTokenAddress == _aToken) return i;
+        }
+
+        return type(uint8).max;
     }
 }

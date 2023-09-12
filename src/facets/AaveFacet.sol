@@ -14,22 +14,24 @@ contract AaveFacet is BaseFacet, ReEntrancyGuard {
         0xB53C1a33016B2DC2fF3653530bfF1848a515c8c5;
 
     error InvalidDepositAmount();
-    error InsufficientBalance();
 
     function depositToAave(
         address _tokenAddress,
         uint256 _amount
     )
         external
-        onlySupportedToken(_tokenAddress)
         onlyRegisteredAccount
+        onlySupportedToken(_tokenAddress)
         noReentrant
     {
         if (_amount == 0) revert InvalidDepositAmount();
 
-        borrowToken(msg.sender, _tokenAddress, _amount);
+        IERC20 underlyingToken = IERC20(_tokenAddress);
 
-        IERC20 token = IERC20(_tokenAddress);
+        if (underlyingToken.balanceOf(msg.sender) < _amount)
+            revert InsufficientUserBalance();
+
+        underlyingToken.safeTransferFrom(msg.sender, address(this), _amount);
 
         uint8 poolIndex = getPoolIndexFromToken(_tokenAddress);
 
@@ -42,17 +44,20 @@ contract AaveFacet is BaseFacet, ReEntrancyGuard {
         if (pool.balanceAmount < leverageAmount)
             revert InsufficientPoolBalance();
 
-        pool.balanceAmount -= leverageAmount;
+        LibFarmStorage.Depositor storage depositor = fs.depositors[poolIndex][
+            msg.sender
+        ];
 
-        LibFarmStorage.Depositor storage depositor = fs.depositors[msg.sender];
-        depositor.debtAmount[poolIndex] += leverageAmount;
+        pool.balanceAmount -= leverageAmount;
+        pool.borrowAmount += leverageAmount;
+        depositor.debtAmount += leverageAmount;
 
         uint256 beforeATokenBalance = IERC20(pool.aTokenAddress).balanceOf(
             address(this)
         );
 
         // Approve the Aave lending pool to spend the tokens
-        token.safeApprove(_lendingPool(), depositAmount);
+        underlyingToken.safeApprove(_lendingPool(), depositAmount);
 
         // Deposit tokens into Aave v2 lending pool
         ILendingPool(_lendingPool()).deposit(
@@ -74,11 +79,49 @@ contract AaveFacet is BaseFacet, ReEntrancyGuard {
     function withdrawFromAave(
         address _aTokenAddress,
         uint256 _amount
-    ) external onlyRegisteredAccount noReentrant {
+    )
+        external
+        onlyRegisteredAccount
+        onlySupportedAToken(_aTokenAddress)
+        noReentrant
+    {
+        uint8 poolIndex = getPoolIndexFromAToken(_aTokenAddress);
+
+        LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
+        LibFarmStorage.Pool storage pool = fs.pools[poolIndex];
+        LibFarmStorage.Depositor storage depositor = fs.depositors[poolIndex][
+            msg.sender
+        ];
+
+        if (depositor.stakeAmount[_aTokenAddress] < _amount)
+            revert InsufficientUserBalance();
+
         IERC20 aToken = IERC20(_aTokenAddress);
 
-        if (aToken.balanceOf(msg.sender) < _amount)
-            revert InsufficientBalance();
+        if (aToken.balanceOf(address(this)) < _amount)
+            revert InsufficientPoolBalance();
+
+        uint256 withdrawAmount = _amount.mul(
+            LibPriceOracle.getLatestPrice(LibPriceOracle.AAVE_USD_PRICE_FEED)
+        );
+
+        depositor.stakeAmount[_aTokenAddress] -= _amount;
+
+        if (depositor.debtAmount < withdrawAmount) depositor.debtAmount = 0;
+        else depositor.debtAmount -= withdrawAmount;
+
+        depositor.repayAmount += withdrawAmount;
+
+        pool.balanceAmount += withdrawAmount;
+        pool.borrowAmount -= withdrawAmount;
+
+        if (depositor.stakeAmount[_aTokenAddress] == 0) {
+            uint256 rewardAmount = depositor.repayAmount - depositor.debtAmount;
+            if (rewardAmount > 0) {
+                pool.balanceAmount -= rewardAmount;
+                pool.borrowAmount += rewardAmount;
+            }
+        }
 
         address lendingPoolAddr = _lendingPool();
 

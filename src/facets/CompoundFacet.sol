@@ -18,28 +18,6 @@ contract CompoundFacet is BaseFacet, ReEntrancyGuard {
     error InvalidSupplyAmount();
     error InsufficientBalance();
 
-    function supplyEther(
-        address payable _etherContract
-    )
-        external
-        payable
-        onlyRegisteredAccount
-        onlySupportedToken(_etherContract)
-        noReentrant
-        returns (bool)
-    {
-        if (msg.value == 0) revert InvalidSupplyAmount();
-        // Create a reference to the corresponding cToken contract
-        CEth cToken = CEth(_etherContract);
-
-        // cToken.mint{value: msg.value, gas: 250000}();
-        cToken.mint{value: msg.value}();
-
-        emit EtherSupplied(0, msg.value);
-
-        return true;
-    }
-
     function supplyToken(
         address _tokenAddress,
         uint256 _amountToSupply
@@ -51,8 +29,6 @@ contract CompoundFacet is BaseFacet, ReEntrancyGuard {
         returns (uint)
     {
         if (_amountToSupply == 0) revert InvalidSupplyAmount();
-
-        borrowToken(msg.sender, _tokenAddress, _amountToSupply);
 
         IERC20 underlyingToken = IERC20(_tokenAddress);
 
@@ -79,14 +55,19 @@ contract CompoundFacet is BaseFacet, ReEntrancyGuard {
             _amountToSupply
         );
 
+        LibFarmStorage.Depositor storage depositor = fs.depositors[poolIndex][
+            msg.sender
+        ];
+
+        depositor.debtAmount += leverageAmount;
+        pool.borrowAmount += leverageAmount;
+        pool.balanceAmount -= leverageAmount;
+
         // Approve transfer on the ERC20 contract
         underlyingToken.safeApprove(pool.cTokenAddress, depositAmount);
 
         // Create a reference to the corresponding cToken contract, like cUSDC, cUSDT
         CErc20 cToken = CErc20(pool.cTokenAddress);
-
-        LibFarmStorage.Depositor storage depositor = fs.depositors[msg.sender];
-        depositor.debtAmount[poolIndex] += leverageAmount;
 
         uint256 balanceBeforeMint = cToken.balanceOf(address(this));
 
@@ -106,9 +87,53 @@ contract CompoundFacet is BaseFacet, ReEntrancyGuard {
         uint256 _amount,
         bool redeemType,
         address _cTokenAddress
-    ) external onlyRegisteredAccount noReentrant returns (bool) {
+    )
+        external
+        onlyRegisteredAccount
+        onlySupportedCToken(_cTokenAddress)
+        noReentrant
+        returns (bool)
+    {
+        uint8 poolIndex = getPoolIndexFromCToken(_cTokenAddress);
+
+        LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
+        LibFarmStorage.Pool storage pool = fs.pools[poolIndex];
+        LibFarmStorage.Depositor storage depositor = fs.depositors[poolIndex][
+            msg.sender
+        ];
+
+        if (depositor.stakeAmount[_cTokenAddress] < _amount)
+            revert InsufficientUserBalance();
+
         // Create a reference to the corresponding cToken contract, like cUSDC, cUSDT
         CErc20 cToken = CErc20(_cTokenAddress);
+
+        if (cToken.balanceOf(address(this)) < _amount)
+            revert InsufficientPoolBalance();
+
+        uint256 withdrawAmount = LibPriceOracle.getLatestPrice(
+            LibPriceOracle.COMP_USD_PRICE_FEED
+        );
+
+        depositor.stakeAmount[_cTokenAddress] -= _amount;
+
+        if (depositor.debtAmount < withdrawAmount) depositor.debtAmount = 0;
+        else depositor.debtAmount -= withdrawAmount;
+
+        depositor.repayAmount += withdrawAmount;
+
+        pool.balanceAmount += withdrawAmount;
+        pool.borrowAmount -= withdrawAmount;
+
+        if (depositor.stakeAmount[_cTokenAddress] == 0) {
+            uint256 rewardAmount = depositor.repayAmount - depositor.debtAmount;
+            pool.rewardAmount += rewardAmount;
+
+            if (rewardAmount > 0) {
+                pool.balanceAmount -= rewardAmount;
+                pool.borrowAmount += rewardAmount;
+            }
+        }
 
         uint256 redeemResult;
 
@@ -124,30 +149,4 @@ contract CompoundFacet is BaseFacet, ReEntrancyGuard {
 
         return true;
     }
-
-    function redeemCEth(
-        uint256 _amount,
-        bool _redeemType,
-        address _cEtherAddress
-    ) external onlyRegisteredAccount noReentrant returns (bool) {
-        // Create a reference to the corresponding cToken contract
-        CEth cToken = CEth(_cEtherAddress);
-
-        uint256 redeemResult;
-
-        if (_redeemType == true) {
-            // Retrieve your asset based on a cToken amount
-            redeemResult = cToken.redeem(_amount);
-        } else {
-            // Retrieve your asset based on an amount of the asset
-            redeemResult = cToken.redeemUnderlying(_amount);
-        }
-
-        emit RedeemFinished(redeemResult, _amount);
-
-        return true;
-    }
-
-    // This is needed to receive ETH when calling `redeemCEth`
-    receive() external payable {}
 }

@@ -39,31 +39,23 @@ library LibFarmStorage {
         uint256 interestAmount;
         uint256 borrowAmount;
         uint256 assetAmount;
+        uint rewardAmount;
         bool supported;
     }
 
     struct Depositor {
-        mapping(uint8 => uint256) amount;
-        mapping(uint8 => uint256) assetAmount;
-        mapping(uint8 => uint256) debtAmount;
-        mapping(address => uint256) stakeAmount;
-    }
-
-    struct Loan {
-        uint256 collateralAmount;
-        uint256 borrowedAmount;
+        uint256 amount;
+        uint256 assetAmount;
+        uint256 debtAmount;
         uint256 repayAmount;
-        uint256 interestAmount;
-        uint256 timestamp;
+        mapping(address => uint256) stakeAmount;
     }
 
     struct Storage {
         bool initialized;
         mapping(uint8 => Pool) pools;
         mapping(address => address) accounts;
-        mapping(address => Depositor) depositors;
-        mapping(address => Loan) loans;
-        address[] tokens;
+        mapping(uint8 => mapping(address => Depositor)) depositors;
         uint8 interestRate;
         uint8 collateralFactor;
     }
