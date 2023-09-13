@@ -32,6 +32,7 @@ contract BaseFacet {
     error InsufficientCollateralBalance();
     error ZeroCollateralAmountForBorrow();
     error InvalidLiquidate();
+    error InsufficientLiquidateAmount();
 
     modifier onlyRegisteredAccount() {
         checkExistAccount(msg.sender);
@@ -115,11 +116,6 @@ contract BaseFacet {
         ) revert NotSupportedToken();
     }
 
-    /**
-    @dev Calculates the asset amount based on the pool ID and the amount.
-    @param _amount The amount to calculate the asset amount for.
-    @return The calculated asset amount.
-    */
     function calculateAssetAmount(
         uint8 _poolIndex,
         uint256 _amount
@@ -141,12 +137,6 @@ contract BaseFacet {
         return assetAmount;
     }
 
-    /**
-    @dev Calculates the amount of tokens to deposit or withdraw based on the asset amount and the total liquidity of a pool by providing the pool ID.
-    @param _assetAmount The amount of asset tokens the caller wants to deposit or withdraw.
-    @return The amount of tokens to deposit or withdraw based on the asset amount and the total liquidity of the pool.
-    @notice This function retrieves the pool data based on the pool ID and calculates the amount of tokens to deposit or withdraw based on the asset amount and the total liquidity of the pool.
-    */
     function calculateAmount(
         uint8 _poolIndex,
         uint256 _assetAmount
@@ -168,23 +158,19 @@ contract BaseFacet {
 
     function getUserDebt(
         address _user,
+        address _token,
         uint8 _poolIndex
     ) internal view returns (uint256) {
         LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
-        LibFarmStorage.Pool memory pool = fs.pools[_poolIndex];
         LibFarmStorage.Depositor storage depositor = fs.depositors[_poolIndex][
             _user
         ];
 
-        uint256 userDebt = depositor.debtAmount;
+        uint256 userDebt = depositor.debtAmount[_token];
 
         userDebt +=
-            depositor.stakeAmount[pool.cTokenAddress] *
-            LibPriceOracle.getLatestPrice(pool.cTokenAddress);
-
-        userDebt +=
-            depositor.stakeAmount[pool.cTokenAddress] *
-            LibPriceOracle.getLatestPrice(pool.aTokenAddress);
+            depositor.stakeAmount[_token] *
+            LibPriceOracle.getLatestPrice(_token);
 
         return userDebt;
     }

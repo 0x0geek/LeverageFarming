@@ -59,22 +59,24 @@ contract CompoundFacet is BaseFacet, ReEntrancyGuard {
             msg.sender
         ];
 
-        depositor.debtAmount += leverageAmount;
+        address cTokenAddress = pool.cTokenAddress;
+
+        depositor.debtAmount[cTokenAddress] += leverageAmount;
         pool.borrowAmount += leverageAmount;
         pool.balanceAmount -= leverageAmount;
 
         // Approve transfer on the ERC20 contract
-        underlyingToken.safeApprove(pool.cTokenAddress, depositAmount);
+        underlyingToken.safeApprove(cTokenAddress, depositAmount);
 
         // Create a reference to the corresponding cToken contract, like cUSDC, cUSDT
-        CErc20 cToken = CErc20(pool.cTokenAddress);
+        CErc20 cToken = CErc20(cTokenAddress);
 
         uint256 balanceBeforeMint = cToken.balanceOf(address(this));
 
         // Mint cTokens
         uint mintResult = cToken.mint(depositAmount);
 
-        depositor.stakeAmount[pool.cTokenAddress] +=
+        depositor.stakeAmount[cTokenAddress] +=
             cToken.balanceOf(address(this)) -
             balanceBeforeMint;
 
@@ -111,28 +113,31 @@ contract CompoundFacet is BaseFacet, ReEntrancyGuard {
         if (cToken.balanceOf(address(this)) < _amount)
             revert InsufficientPoolBalance();
 
-        uint256 withdrawAmount = LibPriceOracle.getLatestPrice(
-            LibPriceOracle.COMP_USD_PRICE_FEED
-        );
+        uint256 withdrawAmount = _amount.mul(cToken.exchangeRateCurrent());
 
         depositor.stakeAmount[_cTokenAddress] -= _amount;
 
-        if (depositor.debtAmount < withdrawAmount) depositor.debtAmount = 0;
-        else depositor.debtAmount -= withdrawAmount;
+        if (depositor.debtAmount[_cTokenAddress] < withdrawAmount)
+            depositor.debtAmount[_cTokenAddress] = 0;
+        else depositor.debtAmount[_cTokenAddress] -= withdrawAmount;
 
-        depositor.repayAmount += withdrawAmount;
+        depositor.repayAmount[_cTokenAddress] += withdrawAmount;
 
         pool.balanceAmount += withdrawAmount;
         pool.borrowAmount -= withdrawAmount;
 
         if (depositor.stakeAmount[_cTokenAddress] == 0) {
-            uint256 rewardAmount = depositor.repayAmount - depositor.debtAmount;
-            pool.rewardAmount += rewardAmount;
+            uint256 rewardAmount = depositor.repayAmount[_cTokenAddress] -
+                depositor.debtAmount[_cTokenAddress];
 
-            if (rewardAmount > 0) {
-                pool.balanceAmount -= rewardAmount;
-                pool.borrowAmount += rewardAmount;
-            }
+            uint256 lpReward = rewardAmount.mul(fs.interestRate).div(100);
+            uint256 depositorReward = rewardAmount.sub(lpReward);
+
+            pool.balanceAmount -= depositorReward;
+            pool.borrowAmount += depositorReward;
+            pool.rewardAmount += lpReward;
+
+            depositor.rewardAmount += depositorReward;
         }
 
         uint256 redeemResult;

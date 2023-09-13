@@ -69,19 +69,43 @@ contract AccountFacet is BaseFacet, ReEntrancyGuard {
 
     function liquidate(
         address _user,
-        uint8 _poolIndex
+        address _token,
+        uint8 _poolIndex,
+        uint256 _amount
     ) external onlyRegisteredAccount onlySupportedPool(_poolIndex) noReentrant {
         LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
         LibFarmStorage.Depositor storage depositor = fs.depositors[_poolIndex][
             _user
         ];
+        LibFarmStorage.Depositor storage liquidator = fs.depositors[_poolIndex][
+            msg.sender
+        ];
+        LibFarmStorage.Pool storage pool = fs.pools[_poolIndex];
 
         uint256 healthRatio = (depositor.amount +
-            getUserDebt(_user, _poolIndex)).div(depositor.debtAmount).mul(
-                LibFarmStorage.COLLATERAL_FACTOR
-            );
+            getUserDebt(_user, _token, _poolIndex))
+            .div(depositor.debtAmount[_token])
+            .mul(LibFarmStorage.COLLATERAL_FACTOR);
 
-        if (healthRatio > 100) revert InvalidLiquidate();
+        if (healthRatio >= 100) revert InvalidLiquidate();
+
+        if (_amount < depositor.debtAmount[_token])
+            revert InsufficientLiquidateAmount();
+
+        IERC20(pool.tokenAddress).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _amount
+        );
+
+        uint256 liquidatePortion = depositor
+            .stakeAmount[_token]
+            .mul(LibFarmStorage.LIQUIDATE_FEE)
+            .div(100);
+
+        liquidator.stakeAmount[_token] += liquidatePortion;
+        depositor.stakeAmount[_token] -= liquidatePortion;
+        depositor.debtAmount[_token] -= _amount;
     }
 
     function withdraw(

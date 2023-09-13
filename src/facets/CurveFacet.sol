@@ -12,7 +12,6 @@ contract CurveFacet is BaseFacet, ReEntrancyGuard {
 
     event Deposit(address indexed _poolAddress, uint256 _amount);
     event Withdraw(address indexed _poolAddress, uint256[3] _amounts);
-    error InsufficientBalance();
 
     function depositToCurve(
         address _poolAddress,
@@ -23,7 +22,7 @@ contract CurveFacet is BaseFacet, ReEntrancyGuard {
             IERC20 token = IERC20(_tokenAddress[i]);
 
             if (token.balanceOf(msg.sender) < _amounts[i])
-                revert InsufficientBalance();
+                revert InsufficientUserBalance();
 
             // Transfer tokens from sender to this contract
             token.safeTransferFrom(msg.sender, address(this), _amounts[i]);

@@ -48,11 +48,13 @@ contract AaveFacet is BaseFacet, ReEntrancyGuard {
             msg.sender
         ];
 
+        address aTokenAddress = pool.aTokenAddress;
+
         pool.balanceAmount -= leverageAmount;
         pool.borrowAmount += leverageAmount;
-        depositor.debtAmount += leverageAmount;
+        depositor.debtAmount[aTokenAddress] += leverageAmount;
 
-        uint256 beforeATokenBalance = IERC20(pool.aTokenAddress).balanceOf(
+        uint256 beforeATokenBalance = IERC20(aTokenAddress).balanceOf(
             address(this)
         );
 
@@ -67,11 +69,11 @@ contract AaveFacet is BaseFacet, ReEntrancyGuard {
             0
         );
 
-        uint256 afterAtokenBalance = IERC20(pool.aTokenAddress).balanceOf(
+        uint256 afterAtokenBalance = IERC20(aTokenAddress).balanceOf(
             address(this)
         );
 
-        depositor.stakeAmount[pool.aTokenAddress] +=
+        depositor.stakeAmount[aTokenAddress] +=
             afterAtokenBalance -
             beforeATokenBalance;
     }
@@ -107,20 +109,27 @@ contract AaveFacet is BaseFacet, ReEntrancyGuard {
 
         depositor.stakeAmount[_aTokenAddress] -= _amount;
 
-        if (depositor.debtAmount < withdrawAmount) depositor.debtAmount = 0;
-        else depositor.debtAmount -= withdrawAmount;
+        if (depositor.debtAmount[_aTokenAddress] < withdrawAmount)
+            depositor.debtAmount[_aTokenAddress] = 0;
+        else depositor.debtAmount[_aTokenAddress] -= withdrawAmount;
 
-        depositor.repayAmount += withdrawAmount;
+        depositor.repayAmount[_aTokenAddress] += withdrawAmount;
 
         pool.balanceAmount += withdrawAmount;
         pool.borrowAmount -= withdrawAmount;
 
         if (depositor.stakeAmount[_aTokenAddress] == 0) {
-            uint256 rewardAmount = depositor.repayAmount - depositor.debtAmount;
-            if (rewardAmount > 0) {
-                pool.balanceAmount -= rewardAmount;
-                pool.borrowAmount += rewardAmount;
-            }
+            uint256 rewardAmount = depositor.repayAmount[_aTokenAddress] -
+                depositor.debtAmount[_aTokenAddress];
+
+            uint256 lpReward = rewardAmount.mul(fs.interestRate).div(100);
+            uint256 depositorReward = rewardAmount.sub(lpReward);
+
+            pool.balanceAmount -= depositorReward;
+            pool.borrowAmount += depositorReward;
+            pool.rewardAmount += lpReward;
+
+            depositor.rewardAmount += depositorReward;
         }
 
         address lendingPoolAddr = _lendingPool();
