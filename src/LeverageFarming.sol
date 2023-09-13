@@ -19,7 +19,7 @@ contract LeverageFarming is Ownable, ReentrancyGuard {
             0,
             LibFarmStorage.ETHER_ADDRESS,
             LibFarmStorage.CETHER_ADDRESS,
-            LibFarmStorage.ETHER_ADDRESS
+            LibFarmStorage.AETHER_ADDRESS
         ); // Ether pool
 
         addPool(

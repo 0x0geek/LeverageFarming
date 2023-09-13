@@ -7,7 +7,7 @@ library LibFarmStorage {
         keccak256("com.leveragefarming.farm.storage");
 
     address public constant ETHER_ADDRESS =
-        0x0000000000000000000000000000000000000000;
+        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address public constant USDC_ADDRESS =
         0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address public constant USDT_ADDRESS =
@@ -24,6 +24,8 @@ library LibFarmStorage {
         0xBcca60bB61934080951369a648Fb03DF4F96263C;
     address public constant AUSDT_ADDRESS =
         0x3Ed3B47Dd13EC9a98b44e6204A523E766B225811;
+    address public constant AETHER_ADDRESS =
+        0x030bA81f1c18d280636F32af80b9AAd02Cf0854e;
 
     uint256 internal constant USDC_DECIMAL = 1e6;
 
