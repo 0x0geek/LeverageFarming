@@ -58,7 +58,7 @@ library LibFarmStorage {
     struct Storage {
         bool initialized;
         mapping(uint8 => Pool) pools;
-        mapping(address => address) accounts;
+        mapping(address => bool) accounts;
         mapping(uint8 => mapping(address => Depositor)) depositors;
         uint8 interestRate;
         uint8 collateralFactor;

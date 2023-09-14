@@ -34,6 +34,7 @@ contract AccountFacet is BaseFacet, ReEntrancyGuard {
         uint256 _amount
     )
         external
+        onlyRegisteredAccount
         onlySupportedPool(_poolIndex)
         onlyAmountNotZero(_amount)
         noReentrant
@@ -73,6 +74,8 @@ contract AccountFacet is BaseFacet, ReEntrancyGuard {
         uint8 _poolIndex,
         uint256 _amount
     ) external onlyRegisteredAccount onlySupportedPool(_poolIndex) noReentrant {
+        if (_user == msg.sender) revert InvalidLiquidateUser();
+
         LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
         LibFarmStorage.Depositor storage depositor = fs.depositors[_poolIndex][
             _user

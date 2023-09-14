@@ -33,6 +33,7 @@ contract BaseFacet {
     error ZeroCollateralAmountForBorrow();
     error InvalidLiquidate();
     error InsufficientLiquidateAmount();
+    error InvalidLiquidateUser();
 
     modifier onlyRegisteredAccount() {
         checkExistAccount(msg.sender);
@@ -67,7 +68,7 @@ contract BaseFacet {
     function checkExistAccount(address _sender) internal view {
         LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
 
-        if (fs.accounts[_sender] == address(0)) revert InvalidAccount();
+        if (fs.accounts[_sender] == false) revert InvalidAccount();
     }
 
     function checkIfAmountNotZero(uint256 _amount) internal view virtual {

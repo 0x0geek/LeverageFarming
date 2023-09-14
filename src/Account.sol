@@ -2,9 +2,6 @@
 pragma solidity 0.8.20;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin-upgrade/contracts/proxy/utils/Initializable.sol";
-import "@openzeppelin-upgrade/contracts/security/ReentrancyGuardUpgradeable.sol";
-
 import "./interfaces/IDiamondCut.sol";
 import "./interfaces/IDiamondLoupe.sol";
 import "./libraries/LibDiamond.sol";
@@ -12,17 +9,15 @@ import "./libraries/LibOwnership.sol";
 import "./libraries/LibDiamondStorage.sol";
 import "./interfaces/IERC165.sol";
 import "./interfaces/IERC173.sol";
-import "./VersionAware.sol";
 
-contract Account is Initializable, ReentrancyGuardUpgradeable, VersionAware {
-    function initialize(
+contract Account {
+    constructor(
         IDiamondCut.FacetCut[] memory _diamondCut,
         address _owner
-    ) external initializer {
+    ) payable {
         require(_owner != address(0), "owner must not be 0x0");
 
         // owner = _owner;
-        versionAwareContractName = "Beacon Proxy Pattern: V1";
 
         LibDiamond.diamondCut(_diamondCut, address(0), new bytes(0));
         LibOwnership.setContractOwner(_owner);
@@ -58,15 +53,6 @@ contract Account is Initializable, ReentrancyGuardUpgradeable, VersionAware {
                 return(0, returndatasize())
             }
         }
-    }
-
-    function getContractNameWithVersion()
-        public
-        pure
-        override
-        returns (string memory)
-    {
-        return "Beacon Proxy Pattern: V1";
     }
 
     receive() external payable {}
