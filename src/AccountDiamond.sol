@@ -2,6 +2,8 @@
 pragma solidity 0.8.20;
 pragma experimental ABIEncoderV2;
 
+import "forge-std/Test.sol";
+
 import "./interfaces/IDiamondCut.sol";
 import "./interfaces/IDiamondLoupe.sol";
 import "./libraries/LibDiamond.sol";
@@ -10,11 +12,14 @@ import "./libraries/LibDiamondStorage.sol";
 import "./interfaces/IERC165.sol";
 import "./interfaces/IERC173.sol";
 
-contract Account {
+contract AccountDiamond {
     constructor(
         IDiamondCut.FacetCut[] memory _diamondCut,
         address _owner
     ) payable {
+        console.log(msg.sender);
+        console.log(_owner);
+
         require(_owner != address(0), "owner must not be 0x0");
 
         // owner = _owner;

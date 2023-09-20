@@ -3,18 +3,14 @@ pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-
+import "forge-std/Test.sol";
 import "./libraries/LibFarmStorage.sol";
 import "./interfaces/IAccountFactory.sol";
-
-import "./AccountFactory.sol";
 
 contract LeverageFarming is Ownable, ReentrancyGuard {
     IAccountFactory public accountFactory;
 
-    constructor(address _accFactoryAddr) {
-        accountFactory = IAccountFactory(_accFactoryAddr);
-
+    constructor() {
         addPool(
             0,
             LibFarmStorage.ETHER_ADDRESS,
@@ -42,8 +38,9 @@ contract LeverageFarming is Ownable, ReentrancyGuard {
         fs.interestRate = _interestRate;
     }
 
-    function setFacetAddrs(address[] memory _facetAddrs) external onlyOwner {
-        accountFactory.setFacetAddrs(_facetAddrs);
+    function getInterestRate() external view returns (uint8) {
+        LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
+        return fs.interestRate;
     }
 
     function setSupportedToken(
@@ -55,6 +52,12 @@ contract LeverageFarming is Ownable, ReentrancyGuard {
         if (pool.supported != _supported) pool.supported = _supported;
     }
 
+    function isSupportedToken(uint8 _poolIndex) external view returns (bool) {
+        LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
+        LibFarmStorage.Pool storage pool = fs.pools[_poolIndex];
+        return pool.supported;
+    }
+
     function addPool(
         uint8 _poolIndex,
         address _token,
@@ -62,6 +65,7 @@ contract LeverageFarming is Ownable, ReentrancyGuard {
         address _aToken
     ) internal {
         LibFarmStorage.Storage storage fs = LibFarmStorage.farmStorage();
+
         fs.pools[_poolIndex] = LibFarmStorage.Pool({
             tokenAddress: _token,
             cTokenAddress: _cToken,
